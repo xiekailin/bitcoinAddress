@@ -5,6 +5,11 @@ import './AddressExplorer.css';
 import Web3 from 'web3';
 import axios from 'axios';
 
+// 价格缓存时间（毫秒）
+const CACHE_DURATION = 60000; // 1分钟
+const RETRY_DELAY = 5000; // 5秒后重试
+const MAX_RETRIES = 3; // 最大重试次数
+
 const { Title } = Typography;
 
 const AddressExplorer = () => {
@@ -12,7 +17,7 @@ const AddressExplorer = () => {
   const [tokens, setTokens] = useState([]);
   const [loading, setLoading] = useState(false);
   const [chainType, setChainType] = useState('BTC');
-  const [currency, setCurrency] = useState('USD');
+  const [currency, setCurrency] = useState('CNY');
   const [exchangeRate, setExchangeRate] = useState(1);
   const [btcPrice, setBtcPrice] = useState(0);
   const [ethPrice, setEthPrice] = useState(0);
@@ -57,39 +62,91 @@ const AddressExplorer = () => {
     },
   ];
 
-  const updateCryptoPrices = async () => {
+  // 从备用API获取价格
+const fetchPriceFromBackupAPI = async () => {
+  try {
+    const response = await axios.get('https://api.binance.com/api/v3/ticker/24hr?symbols=["BTCUSDT","ETHUSDT"]');
+    const btcData = response.data.find(item => item.symbol === 'BTCUSDT');
+    const ethData = response.data.find(item => item.symbol === 'ETHUSDT');
+    return {
+      bitcoin: { usd: parseFloat(btcData.lastPrice), usd_24h_change: parseFloat(btcData.priceChangePercent) },
+      ethereum: { usd: parseFloat(ethData.lastPrice), usd_24h_change: parseFloat(ethData.priceChangePercent) }
+    };
+  } catch (error) {
+    throw new Error('备用API请求失败');
+  }
+};
+
+const updateCryptoPrices = async (retryCount = 0) => {
+  try {
+    let priceData;
     try {
       const response = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true');
-      const newBtcPrice = response.data.bitcoin.usd;
-      const newEthPrice = response.data.ethereum.usd;
-      const btcChange = response.data.bitcoin.usd_24h_change;
-      const ethChange = response.data.ethereum.usd_24h_change;
-
-      setBtcPrice(newBtcPrice);
-      setEthPrice(newEthPrice);
-      setPriceChanges({
-        btc: btcChange,
-        eth: ethChange
-      });
-      
-      // 更新所有卡片的价值
-      setAddressCards(prev => prev.map(card => ({
-        ...card,
-        value: card.balance * newBtcPrice
-      })));
+      priceData = response.data;
     } catch (error) {
-      console.error('获取加密货币价格失败:', error);
+      if (retryCount < MAX_RETRIES) {
+        message.warning('价格数据获取失败，正在重试...');
+        setTimeout(() => updateCryptoPrices(retryCount + 1), RETRY_DELAY);
+        return;
+      }
+      // 使用备用API
+      message.info('正在使用备用数据源...');
+      priceData = await fetchPriceFromBackupAPI();
     }
+
+    const newBtcPrice = priceData.bitcoin.usd;
+    const newEthPrice = priceData.ethereum.usd;
+    const btcChange = priceData.bitcoin.usd_24h_change;
+    const ethChange = priceData.ethereum.usd_24h_change;
+
+    setBtcPrice(newBtcPrice);
+    setEthPrice(newEthPrice);
+    setPriceChanges({
+      btc: btcChange,
+      eth: ethChange
+    });
+    
+    // 更新所有卡片的价值
+    setAddressCards(prev => prev.map(card => ({
+      ...card,
+      value: card.balance * newBtcPrice
+    })));
+
+    // 更新本地缓存
+    localStorage.setItem('cryptoPrices', JSON.stringify({
+      timestamp: Date.now(),
+      data: priceData
+    }));
+  } catch (error) {
+    console.error('获取加密货币价格失败:', error);
+    message.error('无法获取最新价格数据');
+  }
   };
 
   const updatePricesInterval = useRef(null);
 
   useEffect(() => {
+    // 尝试从本地缓存获取数据
+    const cachedData = localStorage.getItem('cryptoPrices');
+    if (cachedData) {
+      const { timestamp, data } = JSON.parse(cachedData);
+      if (Date.now() - timestamp < CACHE_DURATION) {
+        // 使用缓存数据
+        const { bitcoin, ethereum } = data;
+        setBtcPrice(bitcoin.usd);
+        setEthPrice(ethereum.usd);
+        setPriceChanges({
+          btc: bitcoin.usd_24h_change,
+          eth: ethereum.usd_24h_change
+        });
+      }
+    }
+
     // 初始化时获取价格
     updateCryptoPrices();
 
     // 设置定时更新
-    updatePricesInterval.current = setInterval(updateCryptoPrices, 60000); // 每分钟更新一次
+    updatePricesInterval.current = setInterval(updateCryptoPrices, CACHE_DURATION);
 
     return () => {
       if (updatePricesInterval.current) {
@@ -180,12 +237,14 @@ const AddressExplorer = () => {
             `https://mempool.space/api/address/${targetAddress}`
           );
 
+          const btcBalance = (response.data.chain_stats.funded_txo_sum - response.data.chain_stats.spent_txo_sum) / 100000000;
+          const btcValue = btcBalance * btcPrice;
           tokenList.push({
             key: 'btc',
             name: 'Bitcoin',
             symbol: 'BTC',
-            balance: (response.data.chain_stats.funded_txo_sum - response.data.chain_stats.spent_txo_sum) / 100000000, // Convert satoshis to BTC
-            value: 0,
+            balance: btcBalance,
+            value: btcValue,
           });
         } catch (error) {
           // 如果mempool.space API失败，尝试使用blockchain.com API作为备选
@@ -194,12 +253,14 @@ const AddressExplorer = () => {
               `https://blockchain.info/balance?active=${targetAddress}`
             );
 
+            const btcBalance = response.data[targetAddress].final_balance / 100000000;
+            const btcValue = btcBalance * btcPrice;
             tokenList.push({
               key: 'btc',
               name: 'Bitcoin',
               symbol: 'BTC',
-              balance: response.data[targetAddress].final_balance / 100000000, // Convert satoshis to BTC
-              value: 0,
+              balance: btcBalance,
+              value: btcValue,
             });
           } catch (backupError) {
             throw new Error('所有可用的API都无法访问，请稍后重试');
@@ -272,10 +333,10 @@ const AddressExplorer = () => {
           <Card>
             <Statistic
               title="BTC 价格"
-              value={currency === 'USD' ? btcPrice : btcPrice * exchangeRate}
+              value={btcPrice}
               precision={2}
-              prefix={currency === 'USD' ? '$' : '¥'}
-              suffix={currency}
+              prefix="$"
+              suffix="USD"
               valueStyle={{ color: priceChanges.btc >= 0 ? '#3f8600' : '#cf1322' }}
             />
             <div className="price-change">
@@ -291,10 +352,10 @@ const AddressExplorer = () => {
           <Card>
             <Statistic
               title="ETH 价格"
-              value={currency === 'USD' ? ethPrice : ethPrice * exchangeRate}
+              value={ethPrice}
               precision={2}
-              prefix={currency === 'USD' ? '$' : '¥'}
-              suffix={currency}
+              prefix="$"
+              suffix="USD"
               valueStyle={{ color: priceChanges.eth >= 0 ? '#3f8600' : '#cf1322' }}
             />
             <div className="price-change">

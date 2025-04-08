@@ -80,13 +80,57 @@
   .address-card .card-content {
     padding: 12px;
   }
+  
+  .price-cards .ant-col {
+    width: 100% !important;
+    margin-bottom: 16px;
+  }
+  
+  .price-cards .ant-card {
+    margin-bottom: 0;
+  }
+  
+  .price-cards .ant-statistic-title {
+    font-size: 14px;
+  }
+  
+  .price-cards .ant-statistic-content {
+    font-size: 24px;
+  }
+  
+  .price-cards .price-change {
+    font-size: 12px;
+  }
 }
 
 @media screen and (max-width: 480px) {
+  .crypto-price-card {
+    width: 100%;
+    padding: 16px;
+  }
+  .crypto-price-card .price-value {
+    font-size: 18px;
+  }
+  .crypto-price-card .crypto-icon {
+    font-size: 22px;
+  }
+  .crypto-price-card .price-change {
+    font-size: 14px;
+    margin-top: 4px;
+  }
+  .crypto-price-card .ant-statistic-content {
+    font-size: 18px !important;
+  }
+  .crypto-price-card .ant-statistic-title {
+    font-size: 14px !important;
+    margin-bottom: 6px !important;
+  }
+  .crypto-price-card .ant-card-body {
+    padding: 16px !important;
+  }
   .address-card {
     margin: 8px;
   }
-  
   .address-card .card-content {
     padding: 8px;
   }
