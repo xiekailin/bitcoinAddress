@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Input, Card, Table, Typography, message, Select, Row, Col } from 'antd';
-import { SearchOutlined, WalletOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
+import { Input, Card, Table, Typography, message, Select, Row, Col, Button } from 'antd';
+import { SearchOutlined, WalletOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 import Web3 from 'web3';
 import axios from 'axios';
 
@@ -20,6 +20,9 @@ const AddressExplorer = () => {
     '38ohx7Zzqmi5qJLMbBFptRrYdJycptCcS8'
   ];
   const [addressCards, setAddressCards] = useState([]);
+  const [hiddenCards, setHiddenCards] = useState({
+    '38ohx7Zzqmi5qJLMbBFptRrYdJycptCcS8': true // 默认隐藏的地址
+  });
 
   const validateBitcoinAddress = (address) => {
     // 简单的比特币地址格式验证
@@ -187,18 +190,24 @@ const AddressExplorer = () => {
 
       if (isCard) {
         setAddressCards(prev => {
-          const newCards = [...prev];
-          const existingIndex = newCards.findIndex(card => card.address === targetAddress);
+          // 创建一个新的卡片数据
           const cardData = {
             address: targetAddress,
             balance: tokenList[0].balance,
             value: tokenList[0].value
           };
-          if (existingIndex >= 0) {
-            newCards[existingIndex] = cardData;
-          } else {
-            newCards.push(cardData);
-          }
+          
+          // 创建一个新的卡片数组，保持与defaultAddresses相同的顺序
+          const newCards = defaultAddresses.map(addr => {
+            // 如果是当前更新的地址，使用新数据
+            if (addr === targetAddress) {
+              return cardData;
+            }
+            // 否则使用现有数据或创建空数据
+            const existingCard = prev.find(card => card.address === addr);
+            return existingCard || { address: addr, balance: 0, value: 0 };
+          });
+          
           return newCards;
         });
       } else {
@@ -219,8 +228,18 @@ const AddressExplorer = () => {
         {addressCards.map((card, index) => (
           <Col xs={24} sm={12} md={8} key={card.address}>
             <Card
+              style={{ display: hiddenCards[card.address] ? 'none' : 'block' }}
               title={<span><WalletOutlined /> 比特币地址</span>}
-              extra={<a href={`https://www.blockchain.com/explorer/addresses/btc/${card.address}`} target="_blank" rel="noopener noreferrer">查看详情</a>}
+              extra={
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <Button
+                    type="text"
+                    icon={hiddenCards[card.address] ? <EyeOutlined /> : <EyeInvisibleOutlined />}
+                    onClick={() => setHiddenCards(prev => ({ ...prev, [card.address]: !prev[card.address] }))}
+                  />
+                  <a href={`https://www.blockchain.com/explorer/addresses/btc/${card.address}`} target="_blank" rel="noopener noreferrer">查看详情</a>
+                </div>
+              }
             >
               <p style={{ wordBreak: 'break-all' }}>{card.address}</p>
               <p>余额: {card.balance.toFixed(8)} BTC</p>
