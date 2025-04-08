@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Input, Card, Table, Typography, message, Select, Row, Col, Button } from 'antd';
-import { SearchOutlined, WalletOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
+import { Input, Card, Table, Typography, message, Select, Row, Col, Button, Collapse, Statistic } from 'antd';
+import { SearchOutlined, WalletOutlined, EyeOutlined, EyeInvisibleOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
+import './AddressExplorer.css';
 import Web3 from 'web3';
 import axios from 'axios';
 
@@ -11,9 +12,11 @@ const AddressExplorer = () => {
   const [tokens, setTokens] = useState([]);
   const [loading, setLoading] = useState(false);
   const [chainType, setChainType] = useState('BTC');
-  const [currency, setCurrency] = useState('CNY');
+  const [currency, setCurrency] = useState('USD');
   const [exchangeRate, setExchangeRate] = useState(1);
   const [btcPrice, setBtcPrice] = useState(0);
+  const [ethPrice, setEthPrice] = useState(0);
+  const [priceChanges, setPriceChanges] = useState({ btc: 0, eth: 0 });
   const defaultAddresses = [
     '38G6aG31AxVWAAdrkph3kjzoe4ZD3T9ZeR',
     'bc1pgwv4d0dw2y8pnnw9s8g25ksqktd8qyu3xpwa5f7y3pxeht40tdwsvz5kqe',
@@ -50,9 +53,50 @@ const AddressExplorer = () => {
       title: `价值 (${currency})`,
       dataIndex: 'value',
       key: 'value',
-      render: (text) => currency === 'USD' ? `$${text.toFixed(2)}` : `¥${(text * exchangeRate).toFixed(2)}`,
+      render: (text) => currency === 'CNY' ? `¥${(text * exchangeRate).toFixed(2)}` : `$${text.toFixed(2)}`,
     },
   ];
+
+  const updateCryptoPrices = async () => {
+    try {
+      const response = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true');
+      const newBtcPrice = response.data.bitcoin.usd;
+      const newEthPrice = response.data.ethereum.usd;
+      const btcChange = response.data.bitcoin.usd_24h_change;
+      const ethChange = response.data.ethereum.usd_24h_change;
+
+      setBtcPrice(newBtcPrice);
+      setEthPrice(newEthPrice);
+      setPriceChanges({
+        btc: btcChange,
+        eth: ethChange
+      });
+      
+      // 更新所有卡片的价值
+      setAddressCards(prev => prev.map(card => ({
+        ...card,
+        value: card.balance * newBtcPrice
+      })));
+    } catch (error) {
+      console.error('获取加密货币价格失败:', error);
+    }
+  };
+
+  const updatePricesInterval = useRef(null);
+
+  useEffect(() => {
+    // 初始化时获取价格
+    updateCryptoPrices();
+
+    // 设置定时更新
+    updatePricesInterval.current = setInterval(updateCryptoPrices, 60000); // 每分钟更新一次
+
+    return () => {
+      if (updatePricesInterval.current) {
+        clearInterval(updatePricesInterval.current);
+      }
+    };
+  }, []);
 
   const updateBTCPrice = async () => {
     try {
@@ -221,31 +265,83 @@ const AddressExplorer = () => {
   };
 
   return (
-    <div style={{ padding: '24px' }}>
-      <Title level={2}>区块链地址浏览器</Title>
-      
+    <div className="address-explorer">
+      <Title level={2}>加密货币地址浏览器</Title>
+      <Row gutter={16} className="price-cards">
+        <Col span={8}>
+          <Card>
+            <Statistic
+              title="BTC 价格"
+              value={currency === 'USD' ? btcPrice : btcPrice * exchangeRate}
+              precision={2}
+              prefix={currency === 'USD' ? '$' : '¥'}
+              suffix={currency}
+              valueStyle={{ color: priceChanges.btc >= 0 ? '#3f8600' : '#cf1322' }}
+            />
+            <div className="price-change">
+              24h变化：
+              <span style={{ color: priceChanges.btc >= 0 ? '#3f8600' : '#cf1322' }}>
+                {priceChanges.btc.toFixed(2)}%
+                {priceChanges.btc >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
+              </span>
+            </div>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card>
+            <Statistic
+              title="ETH 价格"
+              value={currency === 'USD' ? ethPrice : ethPrice * exchangeRate}
+              precision={2}
+              prefix={currency === 'USD' ? '$' : '¥'}
+              suffix={currency}
+              valueStyle={{ color: priceChanges.eth >= 0 ? '#3f8600' : '#cf1322' }}
+            />
+            <div className="price-change">
+              24h变化：
+              <span style={{ color: priceChanges.eth >= 0 ? '#3f8600' : '#cf1322' }}>
+                {priceChanges.eth.toFixed(2)}%
+                {priceChanges.eth >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
+              </span>
+            </div>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card>
+            <Statistic
+              title="ETH/BTC 比率"
+              value={ethPrice / btcPrice}
+              precision={4}
+              valueStyle={{ color: '#1890ff' }}
+            />
+            <div className="price-change">
+              1 ETH = {(ethPrice / btcPrice).toFixed(4)} BTC
+            </div>
+          </Card>
+        </Col>
+      </Row>
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         {addressCards.map((card, index) => (
           <Col xs={24} sm={12} md={8} key={card.address}>
             <Card
-              style={{ display: hiddenCards[card.address] ? 'none' : 'block' }}
+              className={`address-card ${hiddenCards[card.address] ? 'collapsed' : ''}`}
               title={<span><WalletOutlined /> 比特币地址</span>}
-              extra={
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <Button
-                    type="text"
-                    icon={hiddenCards[card.address] ? <EyeOutlined /> : <EyeInvisibleOutlined />}
-                    onClick={() => setHiddenCards(prev => ({ ...prev, [card.address]: !prev[card.address] }))}
-                  />
-                  <a href={`https://www.blockchain.com/explorer/addresses/btc/${card.address}`} target="_blank" rel="noopener noreferrer">查看详情</a>
-                </div>
-              }
+              extra={<div style={{ display: 'flex', gap: '8px' }}>
+                <Button
+                  type="text"
+                  icon={hiddenCards[card.address] ? <EyeOutlined /> : <EyeInvisibleOutlined />}
+                  onClick={() => setHiddenCards(prev => ({ ...prev, [card.address]: !prev[card.address] }))}
+                />
+                <a href={`https://www.blockchain.com/explorer/addresses/btc/${card.address}`} target="_blank" rel="noopener noreferrer">查看详情</a>
+              </div>}
             >
-              <p style={{ wordBreak: 'break-all' }}>{card.address}</p>
-              <p>余额: {card.balance.toFixed(8)} BTC</p>
-              <p style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                价值: {currency === 'USD' ? `$${card.value.toFixed(2)}` : `¥${(card.value * exchangeRate).toFixed(2)}`}
-              </p>
+              <div className="card-content">
+                <p style={{ wordBreak: 'break-all' }}>{card.address}</p>
+                <p>余额: {card.balance.toFixed(8)} BTC</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  价值: {currency === 'USD' ? `$${card.value.toFixed(2)}` : `¥${(card.value * exchangeRate).toFixed(2)}`}
+                </p>
+              </div>
             </Card>
           </Col>
         ))}

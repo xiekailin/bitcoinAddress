@@ -1,0 +1,93 @@
+.crypto-price-section {
+  margin: 16px auto;
+  max-width: 1200px;
+}
+
+.crypto-price-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.crypto-price-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.crypto-price-card .crypto-icon {
+  font-size: 24px;
+  margin-right: 8px;
+}
+
+.crypto-price-card .price-value {
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.crypto-price-card .price-change {
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.price-change.positive {
+  color: #52c41a;
+}
+
+.price-change.negative {
+  color: #f5222d;
+}
+
+.address-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  margin: 16px auto;
+  max-width: 1200px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+}
+
+.address-card .card-content {
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 500px;
+  opacity: 1;
+  transform: translateY(0);
+  padding: 16px;
+}
+
+.address-card.collapsed .card-content {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-10px);
+  overflow: hidden;
+}
+
+/* 响应式布局 */
+@media screen and (max-width: 1200px) {
+  .address-card {
+    margin: 16px;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .address-card {
+    margin: 12px;
+  }
+  
+  .address-card .card-content {
+    padding: 12px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .address-card {
+    margin: 8px;
+  }
+  
+  .address-card .card-content {
+    padding: 8px;
+  }
+}
