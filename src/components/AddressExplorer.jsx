@@ -415,6 +415,26 @@ const updateCryptoPrices = async (retryCount = 0) => {
           </Card>
         </Col>
       </Row>
+      <Row justify="center" style={{ marginBottom: '24px' }}>
+        <Col span={24}>
+          <Card>
+            <Statistic
+              title="指定地址总金额"
+              value={
+                addressCards
+                  .filter(card => 
+                    card.address === '38G6aG31AxVWAAdrkph3kjzoe4ZD3T9ZeR' || 
+                    card.address === 'bc1pgwv4d0dw2y8pnnw9s8g25ksqktd8qyu3xpwa5f7y3pxeht40tdwsvz5kqe'
+                  )
+                  .reduce((sum, card) => sum + (currency === 'USD' ? card.value : card.value * exchangeRate), 0)
+              }
+              precision={2}
+              prefix={currency === 'USD' ? '$' : '¥'}
+              valueStyle={{ color: '#1890ff', fontSize: '24px' }}
+            />
+          </Card>
+        </Col>
+      </Row>
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         {addressCards.map((card, index) => (
           <Col xs={24} sm={12} md={8} key={card.address}>
@@ -441,7 +461,6 @@ const updateCryptoPrices = async (retryCount = 0) => {
           </Col>
         ))}
       </Row>
-
       <Card>
         <div style={{ display: 'flex', marginBottom: '24px', gap: '16px' }}></div>
           <Select
