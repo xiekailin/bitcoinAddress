@@ -62,8 +62,8 @@ const AddressExplorer = () => {
     },
   ];
 
-  // 从备用API获取价格
-const fetchPriceFromBackupAPI = async () => {
+  // 从Binance API获取价格
+const fetchPriceFromBinance = async () => {
   try {
     const response = await axios.get('https://api.binance.com/api/v3/ticker/24hr?symbols=["BTCUSDT","ETHUSDT"]');
     const btcData = response.data.find(item => item.symbol === 'BTCUSDT');
@@ -73,7 +73,47 @@ const fetchPriceFromBackupAPI = async () => {
       ethereum: { usd: parseFloat(ethData.lastPrice), usd_24h_change: parseFloat(ethData.priceChangePercent) }
     };
   } catch (error) {
-    throw new Error('备用API请求失败');
+    throw new Error('Binance API请求失败');
+  }
+};
+
+// 从OKX API获取价格
+const fetchPriceFromOKX = async () => {
+  try {
+    const [btcResponse, ethResponse] = await Promise.all([
+      axios.get('https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT'),
+      axios.get('https://www.okx.com/api/v5/market/ticker?instId=ETH-USDT')
+    ]);
+    
+    const btcData = btcResponse.data.data[0];
+    const ethData = ethResponse.data.data[0];
+    
+    return {
+      bitcoin: {
+        usd: parseFloat(btcData.last),
+        usd_24h_change: ((parseFloat(btcData.last) - parseFloat(btcData.open24h)) / parseFloat(btcData.open24h) * 100)
+      },
+      ethereum: {
+        usd: parseFloat(ethData.last),
+        usd_24h_change: ((parseFloat(ethData.last) - parseFloat(ethData.open24h)) / parseFloat(ethData.open24h) * 100)
+      }
+    };
+  } catch (error) {
+    throw new Error('OKX API请求失败');
+  }
+};
+
+// 从备用API获取价格
+const fetchPriceFromBackupAPI = async () => {
+  try {
+    return await fetchPriceFromBinance();
+  } catch (binanceError) {
+    console.log('Binance API失败，尝试OKX API...');
+    try {
+      return await fetchPriceFromOKX();
+    } catch (okxError) {
+      throw new Error('所有备用API请求均失败');
+    }
   }
 };
 
@@ -328,9 +368,9 @@ const updateCryptoPrices = async (retryCount = 0) => {
   return (
     <div className="address-explorer">
       <Title level={2}>加密货币地址浏览器</Title>
-      <Row gutter={16} className="price-cards">
+      <Row gutter={[8, 8]} className="price-cards">
         <Col span={8}>
-          <Card>
+          <Card size="small" bodyStyle={{ padding: '12px' }}>
             <Statistic
               title="BTC 价格"
               value={btcPrice}
@@ -340,16 +380,13 @@ const updateCryptoPrices = async (retryCount = 0) => {
               valueStyle={{ color: priceChanges.btc >= 0 ? '#3f8600' : '#cf1322' }}
             />
             <div className="price-change">
-              24h变化：
-              <span style={{ color: priceChanges.btc >= 0 ? '#3f8600' : '#cf1322' }}>
-                {priceChanges.btc.toFixed(2)}%
-                {priceChanges.btc >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
-              </span>
+              24h: {priceChanges.btc.toFixed(2)}%
+              {priceChanges.btc >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
             </div>
           </Card>
         </Col>
         <Col span={8}>
-          <Card>
+          <Card size="small" bodyStyle={{ padding: '12px' }}>
             <Statistic
               title="ETH 价格"
               value={ethPrice}
@@ -359,16 +396,13 @@ const updateCryptoPrices = async (retryCount = 0) => {
               valueStyle={{ color: priceChanges.eth >= 0 ? '#3f8600' : '#cf1322' }}
             />
             <div className="price-change">
-              24h变化：
-              <span style={{ color: priceChanges.eth >= 0 ? '#3f8600' : '#cf1322' }}>
-                {priceChanges.eth.toFixed(2)}%
-                {priceChanges.eth >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
-              </span>
+              24h: {priceChanges.eth.toFixed(2)}%
+              {priceChanges.eth >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
             </div>
           </Card>
         </Col>
         <Col span={8}>
-          <Card>
+          <Card size="small" bodyStyle={{ padding: '12px' }}>
             <Statistic
               title="ETH/BTC 比率"
               value={ethPrice / btcPrice}

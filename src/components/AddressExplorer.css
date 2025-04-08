@@ -91,15 +91,16 @@
   }
   
   .price-cards .ant-statistic-title {
-    font-size: 14px;
+    font-size: 12px;
   }
   
   .price-cards .ant-statistic-content {
-    font-size: 24px;
+    font-size: 18px;
   }
   
   .price-cards .price-change {
-    font-size: 12px;
+    font-size: 11px;
+    margin-top: 2px;
   }
 }
 
@@ -119,11 +120,11 @@
     margin-top: 4px;
   }
   .crypto-price-card .ant-statistic-content {
-    font-size: 18px !important;
+    font-size: 16px !important;
   }
   .crypto-price-card .ant-statistic-title {
-    font-size: 14px !important;
-    margin-bottom: 6px !important;
+    font-size: 12px !important;
+    margin-bottom: 4px !important;
   }
   .crypto-price-card .ant-card-body {
     padding: 16px !important;
