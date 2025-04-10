@@ -33,9 +33,13 @@ const AddressExplorer = () => {
   });
 
   const validateBitcoinAddress = (address) => {
-    // 简单的比特币地址格式验证
-    const regex = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$|^bc1[ac-hj-np-z02-9]{11,71}$/;
-    return regex.test(address);
+    // 改进的比特币地址格式验证
+    // 支持P2PKH (1开头)、P2SH (3开头)、Bech32 (bc1开头)和Taproot (bc1p开头)地址
+    const legacyRegex = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/;
+    const segwitRegex = /^bc1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{11,71}$/;
+    const taprootRegex = /^bc1p[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{11,71}$/;
+    
+    return legacyRegex.test(address) || segwitRegex.test(address) || taprootRegex.test(address);
   };
 
   const columns = [
@@ -63,104 +67,116 @@ const AddressExplorer = () => {
   ];
 
   // 从Binance API获取价格
-const fetchPriceFromBinance = async () => {
-  try {
-    const response = await axios.get('https://api.binance.com/api/v3/ticker/24hr?symbols=["BTCUSDT","ETHUSDT"]');
-    const btcData = response.data.find(item => item.symbol === 'BTCUSDT');
-    const ethData = response.data.find(item => item.symbol === 'ETHUSDT');
-    return {
-      bitcoin: { usd: parseFloat(btcData.lastPrice), usd_24h_change: parseFloat(btcData.priceChangePercent) },
-      ethereum: { usd: parseFloat(ethData.lastPrice), usd_24h_change: parseFloat(ethData.priceChangePercent) }
-    };
-  } catch (error) {
-    throw new Error('Binance API请求失败');
-  }
-};
-
-// 从OKX API获取价格
-const fetchPriceFromOKX = async () => {
-  try {
-    const [btcResponse, ethResponse] = await Promise.all([
-      axios.get('https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT'),
-      axios.get('https://www.okx.com/api/v5/market/ticker?instId=ETH-USDT')
-    ]);
-    
-    const btcData = btcResponse.data.data[0];
-    const ethData = ethResponse.data.data[0];
-    
-    return {
-      bitcoin: {
-        usd: parseFloat(btcData.last),
-        usd_24h_change: ((parseFloat(btcData.last) - parseFloat(btcData.open24h)) / parseFloat(btcData.open24h) * 100)
-      },
-      ethereum: {
-        usd: parseFloat(ethData.last),
-        usd_24h_change: ((parseFloat(ethData.last) - parseFloat(ethData.open24h)) / parseFloat(ethData.open24h) * 100)
-      }
-    };
-  } catch (error) {
-    throw new Error('OKX API请求失败');
-  }
-};
-
-// 从备用API获取价格
-const fetchPriceFromBackupAPI = async () => {
-  try {
-    return await fetchPriceFromBinance();
-  } catch (binanceError) {
-    console.log('Binance API失败，尝试OKX API...');
+  const fetchPriceFromBinance = async () => {
     try {
-      return await fetchPriceFromOKX();
-    } catch (okxError) {
-      throw new Error('所有备用API请求均失败');
-    }
-  }
-};
-
-const updateCryptoPrices = async (retryCount = 0) => {
-  try {
-    let priceData;
-    try {
-      const response = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true');
-      priceData = response.data;
+      const response = await axios.get('https://api.binance.com/api/v3/ticker/24hr?symbols=["BTCUSDT","ETHUSDT"]');
+      const btcData = response.data.find(item => item.symbol === 'BTCUSDT');
+      const ethData = response.data.find(item => item.symbol === 'ETHUSDT');
+      return {
+        bitcoin: { usd: parseFloat(btcData.lastPrice), usd_24h_change: parseFloat(btcData.priceChangePercent) },
+        ethereum: { usd: parseFloat(ethData.lastPrice), usd_24h_change: parseFloat(ethData.priceChangePercent) }
+      };
     } catch (error) {
-      if (retryCount < MAX_RETRIES) {
-        message.warning('价格数据获取失败，正在重试...');
-        setTimeout(() => updateCryptoPrices(retryCount + 1), RETRY_DELAY);
-        return;
-      }
-      // 使用备用API
-      message.info('正在使用备用数据源...');
-      priceData = await fetchPriceFromBackupAPI();
+      throw new Error('Binance API请求失败');
     }
+  };
 
-    const newBtcPrice = priceData.bitcoin.usd;
-    const newEthPrice = priceData.ethereum.usd;
-    const btcChange = priceData.bitcoin.usd_24h_change;
-    const ethChange = priceData.ethereum.usd_24h_change;
+  // 从OKX API获取价格
+  const fetchPriceFromOKX = async () => {
+    try {
+      const [btcResponse, ethResponse] = await Promise.all([
+        axios.get('https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT'),
+        axios.get('https://www.okx.com/api/v5/market/ticker?instId=ETH-USDT')
+      ]);
+      
+      const btcData = btcResponse.data.data[0];
+      const ethData = ethResponse.data.data[0];
+      
+      return {
+        bitcoin: {
+          usd: parseFloat(btcData.last),
+          usd_24h_change: ((parseFloat(btcData.last) - parseFloat(btcData.open24h)) / parseFloat(btcData.open24h) * 100)
+        },
+        ethereum: {
+          usd: parseFloat(ethData.last),
+          usd_24h_change: ((parseFloat(ethData.last) - parseFloat(ethData.open24h)) / parseFloat(ethData.open24h) * 100)
+        }
+      };
+    } catch (error) {
+      throw new Error('OKX API请求失败');
+    }
+  };
 
-    setBtcPrice(newBtcPrice);
-    setEthPrice(newEthPrice);
-    setPriceChanges({
-      btc: btcChange,
-      eth: ethChange
-    });
-    
-    // 更新所有卡片的价值
-    setAddressCards(prev => prev.map(card => ({
-      ...card,
-      value: card.balance * newBtcPrice
-    })));
+  // 从备用API获取价格
+  const fetchPriceFromBackupAPI = async () => {
+    try {
+      return await fetchPriceFromBinance();
+    } catch (binanceError) {
+      console.log('Binance API失败，尝试OKX API...');
+      try {
+        return await fetchPriceFromOKX();
+      } catch (okxError) {
+        throw new Error('所有备用API请求均失败');
+      }
+    }
+  };
 
-    // 更新本地缓存
-    localStorage.setItem('cryptoPrices', JSON.stringify({
-      timestamp: Date.now(),
-      data: priceData
-    }));
-  } catch (error) {
-    console.error('获取加密货币价格失败:', error);
-    message.error('无法获取最新价格数据');
-  }
+  const updateCryptoPrices = async (retryCount = 0) => {
+    try {
+      let priceData;
+      try {
+        console.log('尝试从CoinGecko获取价格数据...');
+        const response = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true', {
+          timeout: 10000 // 增加超时时间到10秒
+        });
+        priceData = response.data;
+        console.log('CoinGecko价格数据获取成功');
+      } catch (error) {
+        console.log('CoinGecko API失败:', error.message);
+        if (retryCount < MAX_RETRIES) {
+          message.warning('价格数据获取失败，正在重试...');
+          setTimeout(() => updateCryptoPrices(retryCount + 1), RETRY_DELAY);
+          return;
+        }
+        // 使用备用API
+        message.info('正在使用备用数据源...');
+        try {
+          priceData = await fetchPriceFromBackupAPI();
+          console.log('备用API价格数据获取成功');
+        } catch (backupError) {
+          console.error('所有价格API都失败了:', backupError.message);
+          message.error('无法获取价格数据，请稍后刷新页面');
+          return;
+        }
+      }
+
+      const newBtcPrice = priceData.bitcoin.usd;
+      const newEthPrice = priceData.ethereum.usd;
+      const btcChange = priceData.bitcoin.usd_24h_change;
+      const ethChange = priceData.ethereum.usd_24h_change;
+
+      setBtcPrice(newBtcPrice);
+      setEthPrice(newEthPrice);
+      setPriceChanges({
+        btc: btcChange,
+        eth: ethChange
+      });
+      
+      // 更新所有卡片的价值
+      setAddressCards(prev => prev.map(card => ({
+        ...card,
+        value: card.balance * newBtcPrice
+      })));
+
+      // 更新本地缓存
+      localStorage.setItem('cryptoPrices', JSON.stringify({
+        timestamp: Date.now(),
+        data: priceData
+      }));
+    } catch (error) {
+      console.error('获取加密货币价格失败:', error);
+      message.error('无法获取最新价格数据');
+    }
   };
 
   const updatePricesInterval = useRef(null);
@@ -235,6 +251,12 @@ const updateCryptoPrices = async (retryCount = 0) => {
 
   const handleSearch = async (searchAddress = address, isCard = false) => {
     const targetAddress = searchAddress || address;
+    if (!targetAddress) {
+      message.error('请输入地址');
+      return;
+    }
+    
+    // 验证地址格式
     if (chainType === 'ETH' && !Web3.utils.isAddress(targetAddress)) {
       message.error('请输入有效的以太坊地址');
       return;
@@ -243,103 +265,230 @@ const updateCryptoPrices = async (retryCount = 0) => {
       return;
     }
 
+    console.log(`开始搜索地址: ${targetAddress}, 链类型: ${chainType}, 模式: ${isCard ? '卡片' : '表格'}`);
+    message.loading({ content: '正在获取地址信息...', key: 'addressLoading' });
     setLoading(true);
+    
     try {
       let tokenList = [];
       
       if (chainType === 'ETH') {
         // 使用Etherscan API获取以太坊代币余额
-        const response = await axios.get(
-          `https://api.etherscan.io/api?module=account&action=tokentx&address=${address}&sort=desc&apikey=YourApiKey`
-        );
+        try {
+          const response = await axios.get(
+            `https://api.etherscan.io/api?module=account&action=tokentx&address=${targetAddress}&sort=desc&apikey=YourApiKey`
+          );
 
-        if (response.data.status === '1') {
-          const tokenData = response.data.result;
-          const uniqueTokens = new Set();
+          console.log('Etherscan API响应:', response.data);
+          
+          if (response.data.status === '1') {
+            const tokenData = response.data.result;
+            const uniqueTokens = new Set();
 
-          for (const tx of tokenData) {
-            if (!uniqueTokens.has(tx.contractAddress)) {
-              uniqueTokens.add(tx.contractAddress);
-              tokenList.push({
-                key: tx.contractAddress,
-                name: tx.tokenName,
-                symbol: tx.tokenSymbol,
-                balance: tx.value / Math.pow(10, tx.tokenDecimal),
-                value: 0,
-              });
+            for (const tx of tokenData) {
+              if (!uniqueTokens.has(tx.contractAddress)) {
+                uniqueTokens.add(tx.contractAddress);
+                tokenList.push({
+                  key: tx.contractAddress,
+                  name: tx.tokenName,
+                  symbol: tx.tokenSymbol,
+                  balance: tx.value / Math.pow(10, tx.tokenDecimal),
+                  value: 0,
+                });
+              }
             }
+          } else {
+            console.log('Etherscan API返回错误状态:', response.data);
+            message.warning(`获取以太坊数据失败: ${response.data.message || '未知错误'}`);
           }
+        } catch (ethError) {
+          console.error('Etherscan API请求失败:', ethError);
+          message.warning('无法连接到Etherscan API，请稍后重试');
         }
       } else if (chainType === 'BTC') {
         // 使用mempool.space API获取比特币余额
         try {
-          const response = await axios.get(
-            `https://mempool.space/api/address/${targetAddress}`
-          );
+          let btcBalance = 0;
+          let apiSuccess = false;
+          let errorMessages = [];
+          
+          // 尝试使用mempool.space API
+          try {
+            console.log('正在尝试mempool.space API...');
+            const response = await axios.get(
+              `https://mempool.space/api/address/${targetAddress}`,
+              { timeout: 8000 }
+            );
+            btcBalance = (response.data.chain_stats.funded_txo_sum - response.data.chain_stats.spent_txo_sum) / 100000000;
+            apiSuccess = true;
+            console.log('mempool.space API成功获取数据, 余额:', btcBalance);
+          } catch (mempoolError) {
+            console.log('mempool.space API失败:', mempoolError.message);
+            errorMessages.push(`mempool.space: ${mempoolError.message}`);
+            
+            // 尝试blockchain.com API
+            try {
+              console.log('正在尝试blockchain.com API...');
+              const response = await axios.get(
+                `https://blockchain.info/balance?active=${targetAddress}`,
+                { timeout: 8000 }
+              );
+              btcBalance = response.data[targetAddress].final_balance / 100000000;
+              apiSuccess = true;
+              console.log('blockchain.com API成功获取数据, 余额:', btcBalance);
+            } catch (blockchainError) {
+              console.log('blockchain.com API失败:', blockchainError.message);
+              errorMessages.push(`blockchain.com: ${blockchainError.message}`);
+              
+              // 尝试blockchair.com API
+              try {
+                console.log('正在尝试blockchair.com API...');
+                const response = await axios.get(
+                  `https://api.blockchair.com/bitcoin/dashboards/address/${targetAddress}`,
+                  { timeout: 8000 }
+                );
+                btcBalance = response.data.data[targetAddress].address.balance / 100000000;
+                apiSuccess = true;
+                console.log('blockchair.com API成功获取数据, 余额:', btcBalance);
+              } catch (blockchairError) {
+                console.log('blockchair.com API失败:', blockchairError.message);
+                errorMessages.push(`blockchair.com: ${blockchairError.message}`);
+                
+                // 尝试使用btc.com API
+                try {
+                  console.log('正在尝试btc.com API...');
+                  const response = await axios.get(
+                    `https://chain.api.btc.com/v3/address/${targetAddress}`,
+                    { timeout: 8000 }
+                  );
+                  if (response.data.data) {
+                    btcBalance = response.data.data.balance / 100000000;
+                    apiSuccess = true;
+                    console.log('btc.com API成功获取数据, 余额:', btcBalance);
+                  } else {
+                    throw new Error('返回数据格式错误');
+                  }
+                } catch (btcComError) {
+                  console.log('btc.com API失败:', btcComError.message);
+                  errorMessages.push(`btc.com: ${btcComError.message}`);
+                }
+              }
+            }
+          }
+          
+          if (!apiSuccess) {
+            throw new Error(`无法获取地址信息，所有API都失败了: ${errorMessages.join('; ')}`);
+          }
+          
+          // 确保使用最新的BTC价格
+          let currentBtcPrice = btcPrice;
+          // 如果btcPrice为0，尝试重新获取价格
+          if (currentBtcPrice <= 0) {
+            try {
+              console.log('BTC价格为0，尝试重新获取价格...');
+              const priceResponse = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd', {
+                timeout: 8000
+              });
+              currentBtcPrice = priceResponse.data.bitcoin.usd;
+              console.log('获取到新的BTC价格:', currentBtcPrice);
+            } catch (priceError) {
+              console.log('获取BTC价格失败，使用默认值');
+              currentBtcPrice = 50000; // 使用一个默认值，避免显示为0
+            }
+          }
+          
+          const btcValue = btcBalance * currentBtcPrice;
+          // 确保btcBalance是数字类型
+          const numericBalance = typeof btcBalance === 'string' ? parseFloat(btcBalance) : btcBalance;
+          
+          if (isNaN(numericBalance)) {
+            console.error('无效的BTC余额:', btcBalance);
+            throw new Error('获取到无效的BTC余额数据');
+          }
 
-          const btcBalance = (response.data.chain_stats.funded_txo_sum - response.data.chain_stats.spent_txo_sum) / 100000000;
-          const btcValue = btcBalance * btcPrice;
-          tokenList.push({
+          // 确保添加到tokenList的数据类型正确
+          const btcToken = {
             key: 'btc',
             name: 'Bitcoin',
             symbol: 'BTC',
-            balance: btcBalance,
-            value: btcValue,
-          });
+            balance: Number(numericBalance.toFixed(8)), // 确保balance是数字类型且保留8位小数
+            value: Number(btcValue.toFixed(2)), // 确保value是数字类型且保留2位小数
+          };
+          tokenList.push(btcToken);
+          console.log('添加到tokenList的BTC数据:', btcToken);
         } catch (error) {
-          // 如果mempool.space API失败，尝试使用blockchain.com API作为备选
-          try {
-            const response = await axios.get(
-              `https://blockchain.info/balance?active=${targetAddress}`
-            );
-
-            const btcBalance = response.data[targetAddress].final_balance / 100000000;
-            const btcValue = btcBalance * btcPrice;
-            tokenList.push({
-              key: 'btc',
-              name: 'Bitcoin',
-              symbol: 'BTC',
-              balance: btcBalance,
-              value: btcValue,
-            });
-          } catch (backupError) {
-            throw new Error('所有可用的API都无法访问，请稍后重试');
-          }
+          console.error('获取BTC余额失败:', error);
+          throw error;
         }
       }
+
+      console.log('获取到的代币列表:', tokenList);
 
       // 获取实时价格数据
       if (tokenList.length > 0) {
         try {
           if (chainType === 'ETH') {
-            const priceResponse = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
-            const ethPrice = priceResponse.data.ethereum.usd;
+            let currentEthPrice = ethPrice;
+            try {
+              const priceResponse = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd', {
+                timeout: 8000
+              });
+              currentEthPrice = priceResponse.data.ethereum.usd;
+              console.log('获取到ETH价格:', currentEthPrice);
+            } catch (ethPriceError) {
+              console.log('获取ETH价格失败，使用缓存价格:', currentEthPrice);
+            }
+            
             tokenList = await Promise.all(tokenList.map(async (token) => {
               try {
-                const tokenPriceResponse = await axios.get(`https://api.coingecko.com/api/v3/simple/token_price/ethereum?contract_addresses=${token.key}&vs_currencies=usd`);
+                const tokenPriceResponse = await axios.get(`https://api.coingecko.com/api/v3/simple/token_price/ethereum?contract_addresses=${token.key}&vs_currencies=usd`, {
+                  timeout: 8000
+                });
                 const tokenPrice = tokenPriceResponse.data[token.key.toLowerCase()]?.usd || 0;
                 return { ...token, value: token.balance * tokenPrice };
-              } catch {
+              } catch (tokenPriceError) {
+                console.log(`获取代币${token.symbol}价格失败:`, tokenPriceError.message);
                 return { ...token, value: 0 };
               }
             }));
           } else if (chainType === 'BTC') {
-            const priceResponse = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
-            const btcPrice = priceResponse.data.bitcoin.usd;
-            tokenList[0].value = tokenList[0].balance * btcPrice;
+            // 使用当前已有的BTC价格，如果之前已经获取过
+            let currentBtcPrice = btcPrice;
+            if (currentBtcPrice <= 0) {
+              try {
+                const priceResponse = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd', {
+                  timeout: 8000
+                });
+                currentBtcPrice = priceResponse.data.bitcoin.usd;
+                console.log('获取到BTC价格:', currentBtcPrice);
+              } catch (btcPriceError) {
+                console.log('获取BTC价格失败，使用默认值');
+                // 如果无法获取价格，使用一个合理的默认值
+                currentBtcPrice = currentBtcPrice || 50000;
+              }
+            }
+            tokenList[0].value = tokenList[0].balance * currentBtcPrice;
           }
         } catch (priceError) {
           console.error('获取价格数据失败:', priceError);
+          message.warning('价格数据获取失败，显示的价值可能不准确');
         }
       }
 
       if (isCard) {
+        // 更新卡片模式的数据
         setAddressCards(prev => {
           // 创建一个新的卡片数据
+          const balance = tokenList.length > 0 ? tokenList[0].balance : 0;
+          const value = tokenList.length > 0 ? tokenList[0].value : 0;
+          
+          // 确保balance是数字类型
+          const numericBalance = typeof balance === 'string' ? parseFloat(balance) : balance;
+          
           const cardData = {
             address: targetAddress,
-            balance: tokenList[0].balance,
-            value: tokenList[0].value
+            balance: numericBalance,
+            value: value
           };
           
           // 创建一个新的卡片数组，保持与defaultAddresses相同的顺序
@@ -356,13 +505,38 @@ const updateCryptoPrices = async (retryCount = 0) => {
           return newCards;
         });
       } else {
-        setTokens(tokenList);
+        // 更新表格模式的数据
+        console.log('更新表格数据:', tokenList);
+        setTokens(tokenList);  // 这是表格的数据源
+        console.log('更新后的tokens状态:', tokens); // 调试日志
+        
+        // 如果没有数据，显示提示
+        if (tokenList.length === 0) {
+          message.info('未找到该地址的代币数据');
+        }
       }
+      
+      // 成功获取数据后显示成功消息
+      message.success({
+        content: '地址数据获取成功',
+        key: 'addressLoading',
+        duration: 2
+      });
     } catch (error) {
-      message.error('获取数据失败，请稍后重试');
-      console.error(error);
+      console.error('获取数据失败:', error);
+      message.error({
+        content: error.message || '获取数据失败，请稍后重试',
+        key: 'addressLoading'
+      });
+      
+      // 确保在错误情况下也清空加载状态
+      if (!isCard) {
+        setTokens([]);
+      }
+    } finally {
+      setLoading(false);
+      setTimeout(() => message.destroy('addressLoading'), 2000);
     }
-    setLoading(false);
   };
 
   return (
@@ -462,41 +636,63 @@ const updateCryptoPrices = async (retryCount = 0) => {
         ))}
       </Row>
       <Card>
-        <div style={{ display: 'flex', marginBottom: '24px', gap: '16px' }}></div>
-          <Select
-            value={chainType}
-            onChange={setChainType}
-            style={{ width: 120 }}
-            options={[
-              { value: 'ETH', label: '以太坊' },
-              { value: 'BTC', label: '比特币' },
-            ]}
-          />
-          <Select
-            value={currency}
-            onChange={setCurrency}
-            style={{ width: 120 }}
-            options={[
-              { value: 'USD', label: '美元 (USD)' },
-              { value: 'CNY', label: '人民币 (CNY)' },
-            ]}
-          />
-          <Input.Search
-            placeholder={`请输入${chainType === 'ETH' ? '以太坊' : '比特币'}地址`}
-            style={{ flex: 1 }}
-          enterButton={<SearchOutlined />}
-          size="large"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          onSearch={handleSearch}
-
-        />
-        <Table
-          columns={columns}
-          dataSource={tokens}
-          loading={loading}
-          pagination={false}
-        />
+        {/* 关键修改: 添加className="search-section" */}
+        <div className="search-section">
+  <Row gutter={[16, 16]} align="middle" style={{ width: '100%' }}>
+    <Col xs={24} sm={24} md={4} lg={3} xl={3}>
+      <Select
+        value={chainType}
+        onChange={value => {
+          setChainType(value);
+          setTokens([]);
+        }}
+        style={{ width: '100%' }}
+        options={[
+          { value: 'ETH', label: '以太坊' },
+          { value: 'BTC', label: '比特币' },
+        ]}
+      />
+    </Col>
+    <Col xs={24} sm={24} md={4} lg={3} xl={3}>
+      <Select
+        value={currency}
+        onChange={setCurrency}
+        style={{ width: '100%' }}
+        options={[
+          { value: 'USD', label: '美元 (USD)' },
+          { value: 'CNY', label: '人民币 (CNY)' },
+        ]}
+      />
+    </Col>
+    <Col xs={24} sm={24} md={16} lg={18} xl={18}>
+      <Input.Search
+        placeholder={`请输入${chainType === 'ETH' ? '以太坊' : '比特币'}地址`}
+        enterButton="搜索"
+        size="large"
+        value={address}
+        onChange={(e) => setAddress(e.target.value)}
+        onSearch={() => handleSearch(address, false)}
+        allowClear
+        style={{ width: '100%' }}
+      />
+    </Col>
+  </Row>
+</div>
+  
+  <div style={{ marginBottom: '10px', fontSize: '12px', color: '#999' }}>
+    当前币种: {chainType}, 数据行数: {tokens.length}
+  </div>
+  
+  <Table
+    columns={columns}
+    dataSource={tokens}
+    loading={loading}
+    pagination={false}
+    rowKey="key"
+    locale={{
+      emptyText: '暂无数据，请搜索一个有效地址'
+    }}
+  />
       </Card>
     </div>
   );

@@ -104,6 +104,55 @@
   }
 }
 
+.search-section {
+  margin: 16px auto;
+  max-width: 1200px;
+  padding: 0 16px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.search-section .ant-input-search {
+  flex: 1;
+  max-width: 600px;
+}
+
+@media screen and (max-width: 768px) {
+  .search-section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 0 12px;
+  }
+  
+  .search-section .ant-input-search {
+    max-width: 100%;
+  }
+  
+  .search-section .ant-input {
+    font-size: 16px !important;
+    padding: 8px 12px !important;
+    height: 42px !important;
+  }
+  
+  .search-section .ant-input-search-button {
+    height: 42px !important;
+    padding: 0 16px !important;
+    font-size: 16px !important;
+  }
+  
+  .search-section .ant-select-selector {
+    height: 42px !important;
+    padding: 5px 12px !important;
+  }
+  
+  .search-section .ant-select-selection-item {
+    font-size: 16px !important;
+    line-height: 30px !important;
+  }
+}
+
 @media screen and (max-width: 480px) {
   .crypto-price-card {
     width: 100%;
@@ -134,5 +183,24 @@
   }
   .address-card .card-content {
     padding: 8px;
+  }
+
+  @media screen and (max-width: 768px) {
+  .search-section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 0 12px;
+  }
+  
+  .search-section .ant-input-search {
+    max-width: 100%;
+  }
+  
+  .search-section .ant-input {
+    font-size: 16px !important;
+    padding: 8px 12px !important;
+    height: 42px !important;
+  }
   }
 }
